@@ -3,6 +3,7 @@
 #include <EEPROM.h>
 #include <Wire.h>                                             //http://playground.arduino.cc/Main/WireLibraryDetailedReference
 #include <SPI.h>
+#include <avr/wdt.h>
 #include "TimerOne.h"
 
 uint16_t eepromStart=5;
@@ -346,69 +347,76 @@ void TimerCallback(){
 }
 
 uint8_t CheckAlarm(uint8_t cause){
-  if(alarm==ALARM_OFF){
-    switch(cause){
-      case ALARM_HEARTBEAT:
-        if(IsFunctionEnabled(FNC_HEARTBEAT)){
-          if(timers[HEARTBEAT_TIMER]==0){
-            alarm=cause;
+  uint8_t result=ALARM_OFF;
+  switch(cause){
+    case ALARM_HEARTBEAT:
+      if(IsFunctionEnabled(FNC_HEARTBEAT)){
+        if(timers[HEARTBEAT_TIMER]==0){
+          result=cause;
+          if(alarm==ALARM_OFF){
             alarmMask=registers[REG_HEARTBEAT_MASK];
             registers[REG_ALARM_INTERRUPTS_0]=ALARM_HEARTBEAT;
             registers[REG_ALARM_INTERRUPTS_1]=0;
           }
         }
-        break;
-      case ALARM_INPUT:
-        if(IsFunctionEnabled(FNC_INPUT)){
-          uint8_t value=registers[REG_INPUT_VALUE];
-          for(uint8_t i=0;i<8;i++){
-            uint8_t shifted=1<<i;
-            if((registers[REG_INPUT_ENABLE]&shifted)>0){
-              if((registers[REG_INPUT_TRIGGER]&shifted)==(value&shifted)){
-                alarm=cause;
+      }
+      break;
+    case ALARM_INPUT:
+      if(IsFunctionEnabled(FNC_INPUT)){
+        uint8_t value=registers[REG_INPUT_VALUE];
+        for(uint8_t i=0;i<8;i++){
+          uint8_t shifted=1<<i;
+          if((registers[REG_INPUT_ENABLE]&shifted)>0){
+            if((registers[REG_INPUT_TRIGGER]&shifted)==(value&shifted)){
+              result=cause;
+              if(alarm==ALARM_OFF){
                 alarmMask=registers[REG_INPUT0_MASK+i];
                 registers[REG_ALARM_INTERRUPTS_0]=ALARM_INPUT;
                 registers[REG_ALARM_INTERRUPTS_1]=shifted;
-                break;
               }
+              break;
             }
           }
         }
-        break;
-      case ALARM_ADC:
-        if(IsFunctionEnabled(FNC_ADC)){
-          uint8_t shifted=0;
-          boolean highThreshold=false;
-          uint16_t value=0;
-          uint16_t compare=0;
-          for(uint8_t i=0;i<6;i++){
-            shifted=1<<i;
-            highThreshold=false;
-            if((registers[REG_ADC_ENABLE]&shifted)>0){
-              GetLargeRegister(REG_ADC0_VALUE+i*2,&value);
-              GetLargeRegister(REG_ADC0_THRESHOLD+i*2,&compare);
-              highThreshold=(registers[REG_ADC_TRIGGER]&shifted)>0;
-              if(highThreshold)
-                if(value>=compare)
-                  alarm=ALARM_ADC;
-              else
-                if(value<=compare)
-                  alarm=ALARM_ADC;
-              if(alarm==ALARM_ADC){
-                registers[REG_ALARM_INTERRUPTS_0]=ALARM_ADC;
-                registers[REG_ALARM_INTERRUPTS_1]=i;
-                break;
-              }
+      }
+      break;
+    case ALARM_ADC:
+      if(IsFunctionEnabled(FNC_ADC)){
+        uint8_t shifted=0;
+        boolean highThreshold=false;
+        uint16_t value=0;
+        uint16_t compare=0;
+        for(uint8_t i=0;i<6;i++){
+          shifted=1<<i;
+          highThreshold=false;
+          if((registers[REG_ADC_ENABLE]&shifted)>0){
+            GetLargeRegister(REG_ADC0_VALUE+i*2,&value);
+            GetLargeRegister(REG_ADC0_THRESHOLD+i*2,&compare);
+            highThreshold=(registers[REG_ADC_TRIGGER]&shifted)>0;
+            if(highThreshold)
+              if(value>=compare)
+                result=ALARM_ADC;
+            else
+              if(value<=compare)
+                result=ALARM_ADC;
+            if(alarm==ALARM_OFF){
+              registers[REG_ALARM_INTERRUPTS_0]=ALARM_ADC;
+              registers[REG_ALARM_INTERRUPTS_1]=i;
+              break;
             }
           }
         }
-        break;
-    }
+      }
+      break;
   }
-  return alarm;
+  if(alarm==ALARM_OFF)
+    alarm=result;
+  return result;
 }
 
 void setup(){
+  wdt_disable();
+
   Timer1.initialize(1000);
   Timer1.attachInterrupt(TimerCallback);
 
@@ -432,6 +440,7 @@ void setup(){
     mode=RUNNING_MODE;
   }
   time=millis();
+  wdt_enable(WDTO_250MS);
 }
 
 void loop(){
@@ -449,6 +458,12 @@ void loop(){
     case ALARM_MODE:
       CheckTime();
       SetOutput();
+      if(IsFunctionEnabled(FNC_SELFRESTORE)){
+        if(CheckAlarm(alarm)==ALARM_OFF){
+          alarm=ALARM_OFF;
+          mode=RUNNING_MODE;
+        }
+      }
       digitalWrite(led0Pin,1);
       break;
     default:
@@ -467,11 +482,12 @@ void loop(){
         action=0;
         break;
       case MSG_RESET:
-        //!todo to be implemented
+        while(1);
         action=0;
         break;
     }
   }else
     action=0;
 
+  wdt_reset();
 }
