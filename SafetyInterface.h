@@ -24,7 +24,7 @@
 #define COMM_I2C                      1
 #define COMM_SPI                      2
 
-#define I2C_ADDRESS                    0x2A
+#define I2C_ADDRESS                   0x2A
 
 #define DEFAULT_COMMUNICATION         COMM_I2C
 
@@ -100,7 +100,7 @@ enum RuntimeRegisters{
   REG_PROBE_VALUE
 };
 
-enum UInt16_tRegisters{
+enum LargeRegisters{
   REG_HEARTBEAT_INTERVAL=REG_HEARTBEAT_INTERVAL_LOWBYTE,
   REG_INPUT_INTERVAL=REG_INPUT_INTERVAL_LOWBYTE,
   REG_ADC_INTERVAL=REG_ADC_INTERVAL_LOWBYTE,
@@ -128,7 +128,10 @@ enum Messages{
   MSG_READ,
   MSG_WRITE,
   MSG_RESET_ALARM,
-  MSG_RESET_SETTINGS
+  MSG_RESET_DEFAULT_SETTINGS,
+  MSG_RELOAD_EEPROM_SETTINGS,
+  MSG_SAVE_SETTINGS,
+  MSG_RESET
 };
 
 enum Functions{
@@ -138,16 +141,16 @@ enum Functions{
   FNC_OUTPUT=8,
   FNC_OUTPUT_230V=16,
   FNC_PROBE=32
-  //FNC_=64,
+  //FNC_SELFRESTORE=64,
   //FNC_=128
 };
 
 enum AlarmTriggers{
-  ALARM_OFF,
+  ALARM_OFF=0,
   ALARM_HEARTBEAT=1,
-  ALARM_INPUT,
-  ALARM_ADC,
-  ALARM_PROBE
+  ALARM_INPUT=2,
+  ALARM_ADC=4,
+  ALARM_PROBE=8
 };
 
 enum PhysicalPins{
@@ -188,13 +191,22 @@ void LoadDefaults();
 boolean LoadFromEeprom();
 uint16_t SaveToEeprom(uint16_t forcedStart=0);
 boolean InitPheripherals();
-void InitSerial();
+
+void InitI2C();
+void InitSPI();
+
+void I2CRequest();
+void I2CReceive(int16_t byteCnt);
+
 boolean WriteRegister(uint8_t address,uint8_t value);
+
 void SetLargeRegister(uint8_t target,uint16_t value);
 void GetLargeRegister(uint8_t target,volatile uint16_t* value);
-uint8_t CheckTime();
+
 void ErrorLedFlash();
 void TimerCallback();
+
+uint8_t CheckTime();
 boolean CheckAdc();
 uint8_t CheckInput();
 uint8_t SetOutput();

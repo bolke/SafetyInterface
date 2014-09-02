@@ -1,10 +1,12 @@
 #include "SafetyInterface.h"
-
 #include <Arduino.h>
 #include <EEPROM.h>
+#include <Wire.h>                                             //http://playground.arduino.cc/Main/WireLibraryDetailedReference
+#include <SPI.h>
 #include "TimerOne.h"
 
 uint16_t eepromStart=5;
+uint8_t action=0;
 uint8_t commMode=DEFAULT_COMMUNICATION;
 uint8_t mode=SETUP_MODE;
 uint8_t registers[NR_OF_REGISTERS]={0};
@@ -27,6 +29,8 @@ boolean CheckAdc(){
   SetLargeRegister(REG_ADC3_VALUE,analogRead(3));
   SetLargeRegister(REG_ADC4_VALUE,analogRead(6));
   SetLargeRegister(REG_ADC5_VALUE,analogRead(7));
+  CheckAlarm(ALARM_ADC);
+  GetLargeRegister(REG_ADC_INTERVAL,&timers[ADC_TIMER]);
   return true;
 }
 
@@ -51,8 +55,8 @@ uint8_t CheckInput(){
   }
 
   registers[REG_INPUT_VALUE]=result;
-//  CheckAlarm(ALARM_INPUT);
-  GetLargeRegister(REG_INPUT_INTERVAL,(uint16_t*)&timers[INPUT_TIMER]);
+  CheckAlarm(ALARM_INPUT);
+  GetLargeRegister(REG_INPUT_INTERVAL,&timers[INPUT_TIMER]);
 
   return result;
 }
@@ -98,11 +102,13 @@ uint8_t SetOutput(){
 void LoadDefaults(){
   memset(registers,0,NR_OF_REGISTERS);
   registers[REG_COMMUNICATION_MODE]=DEFAULT_COMMUNICATION;
-  SetRegUInt16_t(REG_HEARTBEAT_INTERVAL,1000);
-  SetRegUInt16_t(REG_INPUT_INTERVAL,100);
-  SetRegUInt16_t(REG_ADC_INTERVAL,100);
-  SetRegUInt16_t(REG_OUTPUT_INTERVAL,100);
-  SetRegUInt16_t(REG_OUTPUT_230V_DELAY,500);
+  registers[REG_I2C_ADDRESS]=I2C_ADDRESS;
+  registers[REG_FUNCTION_ENABLE]=FNC_HEARTBEAT|FNC_ADC|FNC_INPUT|FNC_OUTPUT|FNC_OUTPUT_230V;
+  SetLargeRegister(REG_HEARTBEAT_INTERVAL,1000);
+  SetLargeRegister(REG_INPUT_INTERVAL,100);
+  SetLargeRegister(REG_ADC_INTERVAL,100);
+  SetLargeRegister(REG_OUTPUT_INTERVAL,100);
+  SetLargeRegister(REG_OUTPUT_230V_DELAY,500);
   commMode=DEFAULT_COMMUNICATION;
 }
 
@@ -160,20 +166,119 @@ uint16_t SaveToEeprom(uint16_t forcedStart){
   return result;
 }
 
+void InitI2C(){
+  Wire.begin(registers[REG_I2C_ADDRESS]);
+  Wire.onReceive(I2CReceive);
+  Wire.onRequest(I2CRequest);
+  led0Pin=SPI_MISO_PIN;
+  led1Pin=SPI_CLK_PIN;
+  pinMode(SPI_MOSI_PIN,INPUT);
+  pinMode(SPI_SS_PIN,INPUT);
+  pinMode(led0Pin,OUTPUT);
+  pinMode(led1Pin,OUTPUT);
+}
+
+void InitSPI(){
+}
+
+void I2CRequest(){
+  if(Wire.available()){
+    if(Wire.read()==MSG_READ){
+      if(Wire.available()>0){
+        uint8_t start=Wire.read();
+        uint8_t cnt=1;
+        if(Wire.available()>0)
+          cnt=Wire.read();
+        while(cnt>0){
+          if(NR_OF_REGISTERS>start){
+            Wire.write(registers[start]);
+            start++;
+            cnt--;
+          }else
+            break;
+        }
+      }
+    }
+  }
+}
+
+void I2CReceive(int16_t byteCnt){
+  if(Wire.available()>0){
+    switch(Wire.read()){
+      case MSG_HEARTBEAT:
+        timers[HEARTBEAT_TIMER]=GetRegUInt16_t(REG_HEARTBEAT_INTERVAL);
+        break;
+      case MSG_WRITE:
+        if(Wire.available()>0){
+          uint8_t start=Wire.read();
+          uint8_t cnt=1;
+          if(Wire.available()>1)
+            cnt=Wire.read();
+          while(cnt>0){
+            if(Wire.available()>0)
+              if(!WriteRegister(start,Wire.read()))
+                break;
+            cnt--;
+          }
+        }
+        break;
+      case MSG_RESET_ALARM:
+        if(Wire.available()==3){
+          if((Wire.read()==MAGIC_EEPROM_BYTE_0)&&(Wire.read()==MAGIC_EEPROM_BYTE_1)&&(Wire.read()==MAGIC_EEPROM_BYTE_2)){
+            alarm=ALARM_OFF;
+            registers[REG_ALARM_INTERRUPTS_0]=0;
+            registers[REG_ALARM_INTERRUPTS_1]=0;
+          }
+        }
+        break;
+      case MSG_RESET_DEFAULT_SETTINGS:
+        if(Wire.available()==3){
+          if((Wire.read()==MAGIC_EEPROM_BYTE_0)&&(Wire.read()==MAGIC_EEPROM_BYTE_1)&&(Wire.read()==MAGIC_EEPROM_BYTE_2)){
+            LoadDefaults();
+          }
+        }
+        break;
+      case MSG_RELOAD_EEPROM_SETTINGS:
+        if(Wire.available()==3){
+          if((Wire.read()==MAGIC_EEPROM_BYTE_0)&&(Wire.read()==MAGIC_EEPROM_BYTE_1)&&(Wire.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_RELOAD_EEPROM_SETTINGS;
+          }
+        }
+        break;
+      case MSG_SAVE_SETTINGS:
+        if(Wire.available()==3){
+          if((Wire.read()==MAGIC_EEPROM_BYTE_0)&&(Wire.read()==MAGIC_EEPROM_BYTE_1)&&(Wire.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_SAVE_SETTINGS;
+          }
+        }
+        break;
+      case MSG_RESET:
+        if(Wire.available()==3){
+          if((Wire.read()==MAGIC_EEPROM_BYTE_0)&&(Wire.read()==MAGIC_EEPROM_BYTE_1)&&(Wire.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_RESET;
+          }
+        }
+        break;
+    }
+    while(Wire.available()>0)
+      Wire.read();
+  }
+}
+
 boolean InitPheripherals(){
   boolean result=true;
   switch(registers[REG_COMMUNICATION_MODE]){
+    case COMM_I2C:
+      InitI2C();
+      break;
+    case COMM_SPI:
+      InitSPI();
+      break;
     default:
       result=false;
       registers[REG_COMMUNICATION_MODE]=DEFAULT_COMMUNICATION;
   }
   return result;
-}
-
-void InitSerial(){
-  led0Pin=I2C_SDA_PIN;
-  led1Pin=I2C_SCL_PIN;
-  Serial.begin(115200);
 }
 
 uint8_t CheckTime(){
@@ -215,6 +320,15 @@ void ErrorLedFlash(){
   delay(500);
 }
 
+boolean WriteRegister(uint8_t address,uint8_t value){
+  boolean result=false;
+  if(address<NR_OF_SAVED_REGISTERS){
+    registers[address]=value;
+    result=true;
+  }
+  return result;
+}
+
 void TimerCallback(){
   if(writeFlag){
     if(bufferTarget<NR_OF_REGISTERS){
@@ -232,7 +346,6 @@ void TimerCallback(){
 }
 
 uint8_t CheckAlarm(uint8_t cause){
-  uint8_t result=0;
   if(alarm==ALARM_OFF){
     switch(cause){
       case ALARM_HEARTBEAT:
@@ -240,7 +353,7 @@ uint8_t CheckAlarm(uint8_t cause){
           if(timers[HEARTBEAT_TIMER]==0){
             alarm=cause;
             alarmMask=registers[REG_HEARTBEAT_MASK];
-            registers[REG_ALARM_INTERRUPTS_0]=1;
+            registers[REG_ALARM_INTERRUPTS_0]=ALARM_HEARTBEAT;
             registers[REG_ALARM_INTERRUPTS_1]=0;
           }
         }
@@ -254,7 +367,7 @@ uint8_t CheckAlarm(uint8_t cause){
               if((registers[REG_INPUT_TRIGGER]&shifted)==(value&shifted)){
                 alarm=cause;
                 alarmMask=registers[REG_INPUT0_MASK+i];
-                registers[REG_ALARM_INTERRUPTS_0]=2;
+                registers[REG_ALARM_INTERRUPTS_0]=ALARM_INPUT;
                 registers[REG_ALARM_INTERRUPTS_1]=shifted;
                 break;
               }
@@ -282,7 +395,7 @@ uint8_t CheckAlarm(uint8_t cause){
                 if(value<=compare)
                   alarm=ALARM_ADC;
               if(alarm==ALARM_ADC){
-                registers[REG_ALARM_INTERRUPTS_0]=4;
+                registers[REG_ALARM_INTERRUPTS_0]=ALARM_ADC;
                 registers[REG_ALARM_INTERRUPTS_1]=i;
                 break;
               }
@@ -292,11 +405,13 @@ uint8_t CheckAlarm(uint8_t cause){
         break;
     }
   }
-  return result;
+  return alarm;
 }
 
 void setup(){
-  InitSerial();
+  Timer1.initialize(1000);
+  Timer1.attachInterrupt(TimerCallback);
+
   if(mode==SETUP_MODE){
     if(!LoadFromEeprom()){
       SaveToEeprom();
@@ -309,30 +424,54 @@ void setup(){
     mode=ERROR_MODE;
   if(mode==SETUP_MODE){
     commMode=registers[REG_COMMUNICATION_MODE];
-    timers[HEARTBEAT_TIMER]=GetRegUInt16_t(REG_HEARTBEAT_INTERVAL);
-    timers[OUTPUT_TIMER]=GetRegUInt16_t(REG_OUTPUT_INTERVAL);
-    timers[OUTPUT_230V_TIMER]=GetRegUInt16_t(REG_OUTPUT_230V_DELAY);
+    GetLargeRegister(REG_HEARTBEAT_INTERVAL,&timers[HEARTBEAT_TIMER]);
+    GetLargeRegister(REG_INPUT_INTERVAL,&timers[INPUT_TIMER]);
+    GetLargeRegister(REG_ADC_INTERVAL,&timers[ADC_TIMER]);
+    GetLargeRegister(REG_OUTPUT_INTERVAL,&timers[OUTPUT_TIMER]);
+    GetLargeRegister(REG_OUTPUT_230V_DELAY,&timers[OUTPUT_230V_TIMER]);
     mode=RUNNING_MODE;
   }
-
-  Timer1.initialize(1000);
-  Timer1.attachInterrupt(TimerCallback);
   time=millis();
 }
 
 void loop(){
   switch(mode){
     case RUNNING_MODE:
-       CheckTime();
-       digitalWrite(led0Pin,0);
-       break;
-     case ALARM_MODE:
-       CheckTime();
-       digitalWrite(led0Pin,1);
-       break;
-     default:
-       ErrorLedFlash();
-       break;
+      CheckTime();
+      CheckAdc();
+      CheckInput();
+      if(alarm==ALARM_OFF)
+        SetOutput();
+      else
+        mode=ALARM_MODE;
+      digitalWrite(led0Pin,0);
+      break;
+    case ALARM_MODE:
+      CheckTime();
+      SetOutput();
+      digitalWrite(led0Pin,1);
+      break;
+    default:
+      ErrorLedFlash();
+      break;
   }
-}
 
+  if(mode!=ALARM_MODE){
+    switch(action){
+      case MSG_RELOAD_EEPROM_SETTINGS:
+        LoadFromEeprom();
+        action=0;
+        break;
+      case MSG_SAVE_SETTINGS:
+        SaveToEeprom();
+        action=0;
+        break;
+      case MSG_RESET:
+        //!todo to be implemented
+        action=0;
+        break;
+    }
+  }else
+    action=0;
+
+}
