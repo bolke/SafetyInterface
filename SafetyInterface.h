@@ -12,8 +12,6 @@
 #define SetRegUInt16_t(a,b)           SplitUInt16_t(b,registers[a],registers[a+1])
 #define IsFunctionEnabled(a)          ((registers[REG_FUNCTION_ENABLE]&a)!=0)
 
-#define DEBUG                         1
-
 #define MAGIC_EEPROM_BYTE_0           0xA2
 #define MAGIC_EEPROM_BYTE_1           0x14
 #define MAGIC_EEPROM_BYTE_2           0x6C
@@ -145,6 +143,7 @@ enum Functions{
 };
 
 enum AlarmTriggers{
+  ALARM_OFF,
   ALARM_HEARTBEAT=1,
   ALARM_INPUT,
   ALARM_ADC,
@@ -199,5 +198,6 @@ void TimerCallback();
 boolean CheckAdc();
 uint8_t CheckInput();
 uint8_t SetOutput();
+uint8_t CheckAlarm(uint8_t cause);
 
 #endif

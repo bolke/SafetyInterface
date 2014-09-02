@@ -17,6 +17,8 @@ volatile uint32_t time=0;
 volatile uint16_t timers[NR_OF_TIMERS]={0};
 volatile uint8_t led0Pin=0;
 volatile uint8_t led1Pin=0;
+volatile uint8_t alarm=ALARM_OFF;
+volatile uint8_t alarmMask=0;
 
 boolean CheckAdc(){
   SetLargeRegister(REG_ADC0_VALUE,analogRead(0));
@@ -78,8 +80,8 @@ uint8_t SetOutput(){
     output=output|(0xF0 & registers[REG_OUTPUT_TARGET_VALUE]);
   }
 
-//  if(alarmFlag)
-//    output=output&alarmMask;
+  if(alarm!=ALARM_OFF)
+    output=output&alarmMask;
 
   if(!IsFunctionEnabled(FNC_OUTPUT))
     output=0;
@@ -229,13 +231,74 @@ void TimerCallback(){
   }
 }
 
+uint8_t CheckAlarm(uint8_t cause){
+  uint8_t result=0;
+  if(alarm==ALARM_OFF){
+    switch(cause){
+      case ALARM_HEARTBEAT:
+        if(IsFunctionEnabled(FNC_HEARTBEAT)){
+          if(timers[HEARTBEAT_TIMER]==0){
+            alarm=cause;
+            alarmMask=registers[REG_HEARTBEAT_MASK];
+            registers[REG_ALARM_INTERRUPTS_0]=1;
+            registers[REG_ALARM_INTERRUPTS_1]=0;
+          }
+        }
+        break;
+      case ALARM_INPUT:
+        if(IsFunctionEnabled(FNC_INPUT)){
+          uint8_t value=registers[REG_INPUT_VALUE];
+          for(uint8_t i=0;i<8;i++){
+            uint8_t shifted=1<<i;
+            if((registers[REG_INPUT_ENABLE]&shifted)>0){
+              if((registers[REG_INPUT_TRIGGER]&shifted)==(value&shifted)){
+                alarm=cause;
+                alarmMask=registers[REG_INPUT0_MASK+i];
+                registers[REG_ALARM_INTERRUPTS_0]=2;
+                registers[REG_ALARM_INTERRUPTS_1]=shifted;
+                break;
+              }
+            }
+          }
+        }
+        break;
+      case ALARM_ADC:
+        if(IsFunctionEnabled(FNC_ADC)){
+          uint8_t shifted=0;
+          boolean highThreshold=false;
+          uint16_t value=0;
+          uint16_t compare=0;
+          for(uint8_t i=0;i<6;i++){
+            shifted=1<<i;
+            highThreshold=false;
+            if((registers[REG_ADC_ENABLE]&shifted)>0){
+              GetLargeRegister(REG_ADC0_VALUE+i*2,&value);
+              GetLargeRegister(REG_ADC0_THRESHOLD+i*2,&compare);
+              highThreshold=(registers[REG_ADC_TRIGGER]&shifted)>0;
+              if(highThreshold)
+                if(value>=compare)
+                  alarm=ALARM_ADC;
+              else
+                if(value<=compare)
+                  alarm=ALARM_ADC;
+              if(alarm==ALARM_ADC){
+                registers[REG_ALARM_INTERRUPTS_0]=4;
+                registers[REG_ALARM_INTERRUPTS_1]=i;
+                break;
+              }
+            }
+          }
+        }
+        break;
+    }
+  }
+  return result;
+}
+
 void setup(){
   InitSerial();
   if(mode==SETUP_MODE){
     if(!LoadFromEeprom()){
-      #ifdef DEBUG
-      Serial.println("Failed LoadFromEeprom. Save eeprom.");
-      #endif
       SaveToEeprom();
     }
     if(!InitPheripherals()){
@@ -245,43 +308,13 @@ void setup(){
   }else
     mode=ERROR_MODE;
   if(mode==SETUP_MODE){
-    #ifdef DEBUG
-    Serial.println("Running");
-    #endif
     commMode=registers[REG_COMMUNICATION_MODE];
     timers[HEARTBEAT_TIMER]=GetRegUInt16_t(REG_HEARTBEAT_INTERVAL);
     timers[OUTPUT_TIMER]=GetRegUInt16_t(REG_OUTPUT_INTERVAL);
     timers[OUTPUT_230V_TIMER]=GetRegUInt16_t(REG_OUTPUT_230V_DELAY);
     mode=RUNNING_MODE;
   }
-  #ifdef DEBUG
-  Serial.println("registers values");
-  for(uint8_t i=0;i<NR_OF_REGISTERS;i++){
-    Serial.print(i);
-    Serial.print(" ");
-    Serial.println(registers[i],DEC);
-  }
-  Serial.println("");
-  Serial.println("UInt16_t registers");
-  Serial.println(GetRegUInt16_t(REG_HEARTBEAT_INTERVAL),DEC);
-  Serial.println(GetRegUInt16_t(REG_INPUT_INTERVAL),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC_INTERVAL),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC0_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC0_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC1_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC1_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC2_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC2_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC3_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC3_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC4_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC4_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC5_THRESHOLD),DEC);
-  Serial.println(GetRegUInt16_t(REG_ADC5_VALUE),DEC);
-  Serial.println(GetRegUInt16_t(REG_INTERNAL_TEMP),DEC);
-  Serial.println(GetRegUInt16_t(REG_OUTPUT_INTERVAL),DEC);
-  Serial.println(GetRegUInt16_t(REG_OUTPUT_230V_DELAY),DEC);
-  #endif
+
   Timer1.initialize(1000);
   Timer1.attachInterrupt(TimerCallback);
   time=millis();
@@ -301,12 +334,5 @@ void loop(){
        ErrorLedFlash();
        break;
   }
-  #ifdef DEBUG
-  if(timers[HEARTBEAT_TIMER]==0){
-    Serial.print("HEARTBEAT: ");
-    Serial.println(time);
-    timers[HEARTBEAT_TIMER]=GetRegUInt16_t(REG_HEARTBEAT_INTERVAL);
-  }
-  #endif
 }
 
