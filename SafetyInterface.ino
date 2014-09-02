@@ -24,31 +24,68 @@ volatile uint8_t alarm=ALARM_OFF;
 volatile uint8_t alarmMask=0;
 
 boolean CheckAdc(){
-  SetLargeRegister(REG_ADC0_VALUE,analogRead(0));
-  SetLargeRegister(REG_ADC1_VALUE,analogRead(1));
-  SetLargeRegister(REG_ADC2_VALUE,analogRead(2));
-  SetLargeRegister(REG_ADC3_VALUE,analogRead(3));
-  SetLargeRegister(REG_ADC4_VALUE,analogRead(6));
-  SetLargeRegister(REG_ADC5_VALUE,analogRead(7));
-  CheckAlarm(ALARM_ADC);
+  boolean result=false;
+  registers[REG_ADC_ENABLE]=0;
+  uint8_t shifted=0;
+  for(uint8_t i=0;i<adcCnt;i++){
+    shifted=i<<1;
+    switch(adcPins[i]){
+      case 0:
+        SetLargeRegister(REG_ADC0_VALUE,analogRead(0));
+        break;
+      case 1:
+        SetLargeRegister(REG_ADC1_VALUE,analogRead(1));
+        break;
+      case 2:
+        SetLargeRegister(REG_ADC2_VALUE,analogRead(2));
+        break;
+      case 3:
+        SetLargeRegister(REG_ADC3_VALUE,analogRead(3));
+        break;
+      case 6:
+        SetLargeRegister(REG_ADC4_VALUE,analogRead(6));
+        break;
+      case 7:
+        SetLargeRegister(REG_ADC5_VALUE,analogRead(7));
+        break;
+      default:
+        registers[REG_ADC_ENABLE]=registers[REG_ADC_ENABLE]&(~shifted);
+        shifted=0;
+    }
+  }
+  result=CheckAlarm(ALARM_ADC)==ALARM_OFF;
   GetLargeRegister(REG_ADC_INTERVAL,&timers[ADC_TIMER]);
-  return true;
+  return result;
 }
 
 boolean CheckInput(){
+  boolean result=false;
   uint8_t value=0;
   uint8_t shifted=0;
+  uint8_t enabled=0;
   for(uint8_t i=0;i<inputCnt;i++){
     shifted=1<<i;
     if(digitalRead(inputPins[i]))
       value=value|shifted;
+    enabled=enabled+shifted;
   }
+  registers[REG_INPUT_ENABLE]=registers[REG_INPUT_ENABLE]&enabled;
   registers[REG_INPUT_VALUE]=value;
-  return CheckAlarm(ALARM_INPUT)==ALARM_OFF;
+  result=CheckAlarm(ALARM_INPUT)==ALARM_OFF;
+  GetLargeRegister(REG_INPUT_INTERVAL,&timers[INPUT_TIMER]);
+  return result;
 }
 
 uint8_t SetOutput(){
-  uint8_t value=0;
+  uint8_t shifted=0;
+  uint8_t value=registers[REG_OUTPUT_TARGET_VALUE];
+  if(alarm!=ALARM_OFF)
+    value=value&alarmMask;
+  for(uint8_t i=0;i<outputCnt;i++){
+    shifted=1<<i;
+    if((registers[REG_OUTPUT_ENABLE]&shifted)>0)
+      digitalWrite(outputPins[i],(value&shifted)>0);
+  }
   return value;
 }
 
@@ -61,7 +98,6 @@ void LoadDefaults(){
   SetLargeRegister(REG_INPUT_INTERVAL,100);
   SetLargeRegister(REG_ADC_INTERVAL,100);
   SetLargeRegister(REG_OUTPUT_INTERVAL,100);
-  SetLargeRegister(REG_OUTPUT_230V_DELAY,500);
   commMode=DEFAULT_COMMUNICATION;
 }
 
