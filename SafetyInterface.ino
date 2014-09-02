@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <EEPROM.h>
-#include <Serial.h>
 #include "TimerOne.h"
 
 uint16_t eepromStart=5;
@@ -10,6 +9,7 @@ uint8_t commMode=DEFAULT_COMMUNICATION;
 uint8_t mode=SETUP_MODE;
 uint8_t registers[NR_OF_REGISTERS]={0};
 
+volatile uint16_t* ptrValue=NULL;
 volatile uint8_t bufferTarget=0xFF;
 volatile uint16_t buffer=0;
 volatile boolean writeFlag=false;
@@ -19,26 +19,78 @@ volatile uint8_t led0Pin=0;
 volatile uint8_t led1Pin=0;
 
 boolean CheckAdc(){
-  SetRegUInt16_t(REG_ADC0_VALUE,analogRead(0));
-  SetRegUInt16_t(REG_ADC1_VALUE,analogRead(1));
-  SetRegUInt16_t(REG_ADC2_VALUE,analogRead(2));
-  SetRegUInt16_t(REG_ADC3_VALUE,analogRead(3));
-  SetRegUInt16_t(REG_ADC4_VALUE,analogRead(6));
-  SetRegUInt16_t(REG_ADC5_VALUE,analogRead(7));
+  SetLargeRegister(REG_ADC0_VALUE,analogRead(0));
+  SetLargeRegister(REG_ADC1_VALUE,analogRead(1));
+  SetLargeRegister(REG_ADC2_VALUE,analogRead(2));
+  SetLargeRegister(REG_ADC3_VALUE,analogRead(3));
+  SetLargeRegister(REG_ADC4_VALUE,analogRead(6));
+  SetLargeRegister(REG_ADC5_VALUE,analogRead(7));
   return true;
 }
 
-boolean CheckInput(){
-  boolean result=false;
-  if(BOARD_TYPE==BOARD_ARDUINO_MINI){
-  }else if(BOARD_TYPE==BOARD_CNC_SHIELD){
+uint8_t CheckInput(){
+  uint8_t result=false;
+  uint8_t bitVal;
+
+  digitalWrite(D165_EN_PIN, HIGH);
+  digitalWrite(D165_LO_PIN, LOW);
+  delayMicroseconds(5);
+  digitalWrite(D165_LO_PIN, HIGH);
+  digitalWrite(D165_EN_PIN, LOW);
+
+  for(int i=0;i<8;i++){
+    bitVal = digitalRead(D165_DO_PIN);
+
+    result |= (bitVal << i);
+
+    digitalWrite(D165_CK_PIN, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(D165_CK_PIN, LOW);
   }
+
+  registers[REG_INPUT_VALUE]=result;
+//  CheckAlarm(ALARM_INPUT);
+  GetLargeRegister(REG_INPUT_INTERVAL,(uint16_t*)&timers[INPUT_TIMER]);
+
   return result;
 }
 
-void SetOutput(){
-  //set outputs
-  //set 74hc595
+uint8_t SetOutput(){
+  uint8_t output=registers[REG_OUTPUT_VALUE];
+  uint16_t outputInterval=0;
+  uint16_t output230vInterval=0;
+
+  outputInterval=GetUInt16_t(registers[REG_OUTPUT_INTERVAL_HIGHBYTE],registers[REG_OUTPUT_INTERVAL_HIGHBYTE]);
+
+  if(IsFunctionEnabled(FNC_OUTPUT_230V)){
+    output230vInterval=GetUInt16_t(registers[REG_OUTPUT_INTERVAL_HIGHBYTE],registers[REG_OUTPUT_INTERVAL_HIGHBYTE]);
+    if(output230vInterval<outputInterval)
+      output230vInterval=outputInterval;
+
+    if(timers[OUTPUT_230V_TIMER]==0){
+      GetLargeRegister(REG_OUTPUT_230V_DELAY,(uint16_t*)&timers[OUTPUT_230V_TIMER]);
+      output=output|(0x0F & registers[REG_OUTPUT_TARGET_VALUE]);
+    }
+  }
+
+  if(timers[OUTPUT_TIMER]==0){
+    GetLargeRegister(REG_OUTPUT_INTERVAL,(uint16_t*)&timers[OUTPUT_TIMER]);
+    output=output|(0xF0 & registers[REG_OUTPUT_TARGET_VALUE]);
+  }
+
+//  if(alarmFlag)
+//    output=output&alarmMask;
+
+  if(!IsFunctionEnabled(FNC_OUTPUT))
+    output=0;
+
+  digitalWrite(D595_LT_PIN, LOW); //latch
+  shiftOut(D595_DI_PIN, D595_CK_PIN, LSBFIRST,output);
+  digitalWrite(D595_LT_PIN, HIGH); //unlatch
+
+  registers[REG_OUTPUT_VALUE]=output;
+
+  return 0;
 }
 
 void LoadDefaults(){
@@ -109,10 +161,6 @@ uint16_t SaveToEeprom(uint16_t forcedStart){
 boolean InitPheripherals(){
   boolean result=true;
   switch(registers[REG_COMMUNICATION_MODE]){
-    case COMM_SERIAL:
-      if(BOARD_TYPE==BOARD_ARDUINO_MINI)
-        InitSerial();
-      break;
     default:
       result=false;
       registers[REG_COMMUNICATION_MODE]=DEFAULT_COMMUNICATION;
@@ -142,19 +190,20 @@ uint8_t CheckTime(){
   return result;
 }
 
-void serialEvent(){
-  while(Serial.available()){
-	  Serial.read();
-	}
-}
-  while(Serial.available()>0)
-    Serial.read();
+void GetLargeRegister(uint8_t target,volatile uint16_t* value){
+  if(value!=NULL){
+    bufferTarget=target;
+    ptrValue=value;
+    writeFlag=true;
+    while(writeFlag);
+  }
 }
 
 void SetLargeRegister(uint8_t target,uint16_t value){
+  ptrValue=NULL;
   buffer=value;
-  writeFlag=true;
   bufferTarget=target;
+  writeFlag=true;
   while(writeFlag);
 }
 
@@ -167,9 +216,14 @@ void ErrorLedFlash(){
 void TimerCallback(){
   if(writeFlag){
     if(bufferTarget<NR_OF_REGISTERS){
-      SetRegUInt16_t(bufferTarget,buffer);
+      if(ptrValue==NULL){
+        SetRegUInt16_t(bufferTarget,buffer);
+      }else{
+        *ptrValue=GetRegUInt16_t(bufferTarget);
+      }
       buffer=0;
       bufferTarget=0xFF;
+      ptrValue=NULL;
     }
     writeFlag=false;
   }
