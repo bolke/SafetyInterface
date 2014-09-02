@@ -36,12 +36,20 @@ boolean CheckAdc(){
 }
 
 boolean CheckInput(){
-  boolean result=false;
-  return result;
+  uint8_t value=0;
+  uint8_t shifted=0;
+  for(uint8_t i=0;i<inputCnt;i++){
+    shifted=1<<i;
+    if(digitalRead(inputPins[i]))
+      value=value|shifted;
+  }
+  registers[REG_INPUT_VALUE]=value;
+  return CheckAlarm(ALARM_INPUT)==ALARM_OFF;
 }
 
 uint8_t SetOutput(){
-  return registers[REG_OUTPUT_VALUE];
+  uint8_t value=0;
+  return value;
 }
 
 void LoadDefaults(){
