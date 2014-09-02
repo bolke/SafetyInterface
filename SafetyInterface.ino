@@ -86,6 +86,7 @@ uint8_t SetOutput(){
     if((registers[REG_OUTPUT_ENABLE]&shifted)>0)
       digitalWrite(outputPins[i],(value&shifted)>0);
   }
+  registers[REG_OUTPUT_VALUE]=value;
   return value;
 }
 
@@ -409,6 +410,85 @@ uint8_t CheckAlarm(uint8_t cause){
   if(alarm==ALARM_OFF)
     alarm=result;
   return result;
+}
+
+void serialEvent(){
+  if(Serial.available()>0){
+    switch(Serial.read()){
+      case MSG_HEARTBEAT:
+        timers[HEARTBEAT_TIMER]=GetRegUInt16_t(REG_HEARTBEAT_INTERVAL);
+        break;
+      case MSG_WRITE:
+        if(Serial.available()>0){
+          uint8_t start=Serial.read();
+          uint8_t cnt=1;
+          if(Serial.available()>1)
+            cnt=Serial.read();
+          while(cnt>0){
+            if(Serial.available()>0)
+              if(!WriteRegister(start,Serial.read()))
+                break;
+            cnt--;
+          }
+        }
+        break;
+      case MSG_RESET_ALARM:
+        if(Serial.available()==3){
+          if((Serial.read()==MAGIC_EEPROM_BYTE_0)&&(Serial.read()==MAGIC_EEPROM_BYTE_1)&&(Serial.read()==MAGIC_EEPROM_BYTE_2)){
+            alarm=ALARM_OFF;
+            registers[REG_ALARM_INTERRUPTS_0]=0;
+            registers[REG_ALARM_INTERRUPTS_1]=0;
+          }
+        }
+        break;
+      case MSG_RESET_DEFAULT_SETTINGS:
+        if(Serial.available()==3){
+          if((Serial.read()==MAGIC_EEPROM_BYTE_0)&&(Serial.read()==MAGIC_EEPROM_BYTE_1)&&(Serial.read()==MAGIC_EEPROM_BYTE_2)){
+            LoadDefaults();
+          }
+        }
+        break;
+      case MSG_RELOAD_EEPROM_SETTINGS:
+        if(Serial.available()==3){
+          if((Serial.read()==MAGIC_EEPROM_BYTE_0)&&(Serial.read()==MAGIC_EEPROM_BYTE_1)&&(Serial.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_RELOAD_EEPROM_SETTINGS;
+          }
+        }
+        break;
+      case MSG_SAVE_SETTINGS:
+        if(Serial.available()==3){
+          if((Serial.read()==MAGIC_EEPROM_BYTE_0)&&(Serial.read()==MAGIC_EEPROM_BYTE_1)&&(Serial.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_SAVE_SETTINGS;
+          }
+        }
+        break;
+      case MSG_RESET:
+        if(Serial.available()==3){
+          if((Serial.read()==MAGIC_EEPROM_BYTE_0)&&(Serial.read()==MAGIC_EEPROM_BYTE_1)&&(Serial.read()==MAGIC_EEPROM_BYTE_2)){
+            action=MSG_RESET;
+          }
+        }
+        break;
+      case MSG_READ:
+        if(Serial.available()>0){
+          uint8_t start=Serial.read();
+          uint8_t cnt=1;
+          if(Serial.available()>0)
+            cnt=Serial.read();
+          while(cnt>0){
+            if(NR_OF_REGISTERS>start){
+              Serial.write(registers[start]);
+              start++;
+              cnt--;
+            }else
+              break;
+          }
+        }
+        break;
+    }
+    while(Serial.available()>0)
+      Serial.read();
+  }
 }
 
 void setup(){
