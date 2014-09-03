@@ -80,15 +80,14 @@
 	<avr/io.h>
 	<avr/interrupt.h>
 
-1409733949 source:d:\workspaces\041_cncsafetyinterface\software\safetyinterface\safetyinterface.ino
+1409754845 source:d:\workspaces\041_cncsafetyinterface\software\safetyinterface\safetyinterface.ino
 	"SafetyInterface.h"
 	<Arduino.h>
 	<EEPROM.h>
 	<Wire.h>
 	<SPI.h>
 	<avr/wdt.h>
-	"TimerOne.h"
 
-1409734147 d:\workspaces\041_cncsafetyinterface\software\safetyinterface\safetyinterface.h
+1409753926 d:\workspaces\041_cncsafetyinterface\software\safetyinterface\safetyinterface.h
 	<Arduino.h>
 

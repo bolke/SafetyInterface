@@ -4,7 +4,6 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <avr/wdt.h>
-#include "TimerOne.h"
 
 uint8_t commMode=DEFAULT_COMMUNICATION;
 uint8_t mode=SETUP_MODE;
@@ -327,7 +326,9 @@ boolean WriteRegister(uint8_t address,uint8_t value){
   return result;
 }
 
-void TimerCallback(){
+ISR (TIMER2_COMPA_vect)
+{
+    // action to be done every 1 msec
   if(writeFlag){
     if(bufferTarget<NR_OF_REGISTERS){
       if(ptrValue==NULL){
@@ -493,8 +494,22 @@ void serialEvent(){
 void setup(){
   wdt_disable();
 
-  Timer1.initialize(1000);
-  Timer1.attachInterrupt(TimerCallback);
+  OCR2A = 62;
+  TCCR2A |= (1 << WGM21);
+  // Set to CTC Mode
+
+  TIMSK2 |= (1 << OCIE2A);
+  //Set interrupt on compare match
+
+  TCCR2B |= (1 << CS22);
+  // set prescaler to 256 and starts PWM
+
+  sei();
+
+  // enable interrupts
+
+ // Timer1.initialize(1000);
+ //Timer1.attachInterrupt(TimerCallback);
 
   if(mode==SETUP_MODE){
     if(!LoadFromEeprom()){
