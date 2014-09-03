@@ -9,6 +9,8 @@
 uint8_t commMode=DEFAULT_COMMUNICATION;
 uint8_t mode=SETUP_MODE;
 uint8_t registers[NR_OF_REGISTERS]={0};
+uint8_t led0Pin=0;
+uint8_t led1Pin=0;
 
 volatile uint8_t action=FNC_NONE;
 volatile uint16_t* ptrValue=NULL;
@@ -17,8 +19,6 @@ volatile uint16_t buffer=0;
 volatile boolean writeFlag=false;
 volatile uint32_t time=0;
 volatile uint16_t timers[NR_OF_TIMERS]={0};
-volatile uint8_t led0Pin=0;
-volatile uint8_t led1Pin=0;
 volatile uint8_t alarm=ALARM_OFF;
 volatile uint8_t alarmMask=0;
 

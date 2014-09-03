@@ -154,10 +154,10 @@ enum AlarmTriggers{
 enum PhysicalPins{
   SPI_SS_PIN=10,
   SPI_MOSI_PIN=11,
-  SPI_MISO_PIN=12,              //led0Pin if not spi
-  SPI_CLK_PIN=13,               //led1Pin if not spi
-  I2C_SDA_PIN=18,               //led0Pin if not i2c
-  I2C_SCL_PIN=19                //led1Pin if not i2c
+  SPI_MISO_PIN=12,              ///led0Pin if not spi
+  SPI_CLK_PIN=13,               ///led1Pin if not spi
+  I2C_SDA_PIN=18,               ///led0Pin if not i2c
+  I2C_SCL_PIN=19                ///led1Pin if not i2c
 };
 
 enum RunningModes{
