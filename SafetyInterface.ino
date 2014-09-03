@@ -1,17 +1,16 @@
 #include "SafetyInterface.h"
 #include <Arduino.h>
 #include <EEPROM.h>
-#include <Wire.h>                                             //http://playground.arduino.cc/Main/WireLibraryDetailedReference
+#include <Wire.h>
 #include <SPI.h>
 #include <avr/wdt.h>
 #include "TimerOne.h"
 
-uint16_t eepromStart=5;
-uint8_t action=0;
 uint8_t commMode=DEFAULT_COMMUNICATION;
 uint8_t mode=SETUP_MODE;
 uint8_t registers[NR_OF_REGISTERS]={0};
 
+volatile uint8_t action=FNC_NONE;
 volatile uint16_t* ptrValue=NULL;
 volatile uint8_t bufferTarget=0xFF;
 volatile uint16_t buffer=0;
@@ -23,8 +22,7 @@ volatile uint8_t led1Pin=0;
 volatile uint8_t alarm=ALARM_OFF;
 volatile uint8_t alarmMask=0;
 
-boolean CheckAdc(){
-  boolean result=false;
+void CheckAdc(){
   registers[REG_ADC_ENABLE]=0;
   uint8_t shifted=0;
   for(uint8_t i=0;i<adcCnt;i++){
@@ -53,13 +51,11 @@ boolean CheckAdc(){
         shifted=0;
     }
   }
-  result=CheckAlarm(ALARM_ADC)==ALARM_OFF;
+  CheckAlarm(ALARM_ADC);
   GetLargeRegister(REG_ADC_INTERVAL,&timers[ADC_TIMER]);
-  return result;
 }
 
-boolean CheckInput(){
-  boolean result=false;
+void CheckInput(){
   uint8_t value=0;
   uint8_t shifted=0;
   uint8_t enabled=0;
@@ -71,9 +67,8 @@ boolean CheckInput(){
   }
   registers[REG_INPUT_ENABLE]=registers[REG_INPUT_ENABLE]&enabled;
   registers[REG_INPUT_VALUE]=value;
-  result=CheckAlarm(ALARM_INPUT)==ALARM_OFF;
+  CheckAlarm(ALARM_INPUT);
   GetLargeRegister(REG_INPUT_INTERVAL,&timers[INPUT_TIMER]);
-  return result;
 }
 
 uint8_t SetOutput(){
@@ -109,7 +104,7 @@ boolean LoadFromEeprom(){
   if(EEPROM.read(0)==MAGIC_EEPROM_BYTE_0){
     if(EEPROM.read(1)==MAGIC_EEPROM_BYTE_1){
       if(EEPROM.read(2)==MAGIC_EEPROM_BYTE_2){
-        eepromStart=GetUInt16_t(EEPROM.read(3),EEPROM.read(4));
+        uint16_t eepromStart=GetUInt16_t(EEPROM.read(3),EEPROM.read(4));
         for(i=0;i<NR_OF_SAVED_REGISTERS;i++)
           registers[i]=EEPROM.read(eepromStart+i);
         result=true;
@@ -119,40 +114,44 @@ boolean LoadFromEeprom(){
   return result;
 }
 
-uint16_t SaveToEeprom(uint16_t forcedStart){
-  uint16_t result=0;
+boolean SaveToEeprom(uint16_t forcedStart){
+  boolean result=false;
   uint8_t i=0;
 
   if(EEPROM.read(0)==MAGIC_EEPROM_BYTE_0){
     if(EEPROM.read(1)==MAGIC_EEPROM_BYTE_1){
       if(EEPROM.read(2)==MAGIC_EEPROM_BYTE_2){
         if(forcedStart==0){
-          eepromStart=GetUInt16_t(EEPROM.read(4),EEPROM.read(3));
-          if((eepromStart+(NR_OF_SAVED_REGISTERS*2))>1024)
+          forcedStart=GetUInt16_t(EEPROM.read(4),EEPROM.read(3));
+          if((forcedStart+(NR_OF_SAVED_REGISTERS*2))>=1024)
             forcedStart=5;
-          else
-	    forcedStart=eepromStart+NR_OF_SAVED_REGISTERS;
-	  result=1;
+          else if(forcedStart>=5)
+            forcedStart=forcedStart+NR_OF_SAVED_REGISTERS;
+          result=true;
         }
       }
     }
   }
 
+  if((forcedStart+NR_OF_SAVED_REGISTERS)<1024)
+    result=true;
+
   if(forcedStart==0)
     forcedStart=5;
 
-  EEPROM.write(0,MAGIC_EEPROM_BYTE_0);
-  EEPROM.write(1,MAGIC_EEPROM_BYTE_1);
-  EEPROM.write(2,MAGIC_EEPROM_BYTE_2);
-	eepromStart=forcedStart;
+  if(result){
+    EEPROM.write(0,MAGIC_EEPROM_BYTE_0);
+    EEPROM.write(1,MAGIC_EEPROM_BYTE_1);
+    EEPROM.write(2,MAGIC_EEPROM_BYTE_2);
 
-  EEPROM.write(3,LowByte(eepromStart));
-  EEPROM.write(4,HighByte(eepromStart));
+    EEPROM.write(3,LowByte(forcedStart));
+    EEPROM.write(4,HighByte(forcedStart));
 
-  for(uint8_t i=0;i<NR_OF_SAVED_REGISTERS;i++)
-    EEPROM.write(eepromStart+i,registers[i]);
+    for(uint8_t i=0;i<NR_OF_SAVED_REGISTERS;i++)
+      EEPROM.write(forcedStart+i,registers[i]);
 
-  result=eepromStart;
+  }
+
   return result;
 }
 

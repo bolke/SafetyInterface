@@ -27,9 +27,6 @@
 #define COMM_SPI                      2
 #define COMM_SERIAL                   3
 
-#define BOARD_ARDUINO_MINI            1
-#define BOARD_CNC_SHIELD              2
-
 #define I2C_ADDRESS                    0x2A
 
 #define DEFAULT_COMMUNICATION         COMM_SERIAL
@@ -127,8 +124,6 @@ enum LargeRegisters{
   REG_OUTPUT_230V_DELAY=REG_OUTPUT_230V_DELAY_LOWBYTE
 };
 
-const uint8_t REG_IO_ASSIGNMENT=REG_OUTPUT_230V_DELAY;
-
 enum Messages{
   MSG_HEARTBEAT=1,
   MSG_READ,
@@ -141,6 +136,7 @@ enum Messages{
 };
 
 enum Functions{
+  FNC_NONE=0,
   FNC_HEARTBEAT=1,
   FNC_INPUT=2,
   FNC_ADC=4,
@@ -165,10 +161,10 @@ enum PhysicalPins{
 };
 
 enum RunningModes{
+  SETUP_MODE,
   RUNNING_MODE,
   ALARM_MODE,
-  ERROR_MODE,
-  SETUP_MODE,
+  ERROR_MODE
 };
 
 enum TimerIds{
@@ -178,37 +174,89 @@ enum TimerIds{
   OUTPUT_TIMER
 };
 
-const uint8_t inputPins[]={};
-const uint8_t outputPins[]={};
-const uint8_t adcPins[]={};
-const uint8_t inputCnt=sizeof(inputPins);
-const uint8_t outputCnt=sizeof(outputPins);
-const uint8_t adcCnt=sizeof(adcPins);
+const uint8_t inputPins[]={};                             ///pin numbers used for input. digitalRead uses these.
+const uint8_t outputPins[]={};                            ///pin numbers used for output. digitalWrite uses these.
+const uint8_t adcPins[]={};                               ///pin numbers used for adc. analogRead uses these.
+const uint8_t inputCnt=sizeof(inputPins);                 ///nr of input pins.
+const uint8_t outputCnt=sizeof(outputPins);               ///nr of output pins.
+const uint8_t adcCnt=sizeof(adcPins);                     ///nr of adc pins.
 
+/// Set most values of registers to 0, except some timer intervals,
+/// and communication mode.
 void LoadDefaults();
+
+/// Load variable from eeprom.
+/// @return Loaded or not?
 boolean LoadFromEeprom();
-uint16_t SaveToEeprom(uint16_t forcedStart=0);
+
+/// Save data to eeprom, using address given or determine the address.
+/// If forcedStart eq 0, address is read from eeprom and incremented with NR_OF_SAVED_REGISTERS.
+/// When data doesn't fit, it'll reset forcedStart to 5, the default address. Eeprom has 3 id bytes
+/// and 2 address bytes before data starts.
+/// @param forcedStart Address in eeprom to save data. If 0, determine own address.
+/// @return Saved or not?
+boolean SaveToEeprom(uint16_t forcedStart=0);
+
+/// Start i2c, spi or serial. Depends upon commMode;
+/// @return initialized or not?
 boolean InitPheripherals();
 
+/// Start serial, 115200 baud, normal settings
 void InitSerial();
+
+/// Start default arduino Wire object. 100k hz.
+/// Initialises event handlers.
 void InitI2C();
+
+/// Start spi slave mode.
 void InitSPI();
 
+/// i2c request event handler. Handles read messages, returns register values.
 void I2CRequest();
+
+/// i2c receive handler. Handles all other messages.
 void I2CReceive(int16_t byteCnt);
 
+/// Wire value to address, and check if everything is valid.
+/// @param address register address to write, saved registers are writeable, others not
+/// @param value the value to write.
 boolean WriteRegister(uint8_t address,uint8_t value);
 
+/// Set a large register using the timer. Function blocks until timer goes of and sets
+/// value. Done because of non atomic operations (16bit value, 8bit proc, etc).
+/// @param target address register address to set. Must be value in LargeRegister enum.
+/// @param value value to insert into address.
 void SetLargeRegister(uint8_t target,uint16_t value);
+
+/// Set a uint16_t to the value at target address.
+/// @param target address register address to set. Must be value in LargeRegister enum.
+/// @param value value variable to be written.
 void GetLargeRegister(uint8_t target,volatile uint16_t* value);
 
+/// Toggle the 2 leds, to indicate error mode.
 void ErrorLedFlash();
+
+/// Callback for timer object. SetLargeRegister and GetLargeRegister depend upon this.
 void TimerCallback();
 
+/// Timekeeper function. Sets countdown timers for the different functions of the device.
+/// @return the number of countdown timers that have reached 0.
 uint8_t CheckTime();
-boolean CheckAdc();
-uint8_t CheckInput();
+
+/// Read the given adc pins and check the alarm.
+void CheckAdc();
+
+/// Read the given input pins and check the alarm.
+void CheckInput();
+
+/// Set the output pins according to the requested value and the alarm mask, if any.
+///@return the output value, including alarm mask.
 uint8_t SetOutput();
+
+/// Check the alarm for the given cause. Checks if an input is triggered, and adc value
+/// passed a threshold, etc.
+/// @param cause an item out of AlarmTriggers enum.
+/// @return the state of alarm, what alarm is active.
 uint8_t CheckAlarm(uint8_t cause);
 
 #endif
