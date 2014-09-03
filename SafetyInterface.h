@@ -133,6 +133,7 @@ enum Messages{
 };
 
 enum Functions{
+  FNC_NONE=0,
   FNC_HEARTBEAT=1,
   FNC_INPUT=2,
   FNC_ADC=4,
@@ -187,7 +188,7 @@ enum TimerIds{
 
 void LoadDefaults();
 boolean LoadFromEeprom();
-uint16_t SaveToEeprom(uint16_t forcedStart=0);
+boolean SaveToEeprom(uint16_t forcedStart=0);
 boolean InitPheripherals();
 
 void InitI2C();
@@ -205,8 +206,8 @@ void ErrorLedFlash();
 void TimerCallback();
 
 uint8_t CheckTime();
-boolean CheckAdc();
-uint8_t CheckInput();
+void CheckAdc();
+void CheckInput();
 uint8_t SetOutput();
 uint8_t CheckAlarm(uint8_t cause);
 

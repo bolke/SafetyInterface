@@ -23,34 +23,12 @@ volatile uint8_t alarm=ALARM_OFF;
 volatile uint8_t alarmMask=0;
 
 void CheckAdc(){
-
-
-
-
-
-
   SetLargeRegister(REG_ADC0_VALUE,analogRead(0));
-
-
   SetLargeRegister(REG_ADC1_VALUE,analogRead(1));
-
-
   SetLargeRegister(REG_ADC2_VALUE,analogRead(2));
-
-
   SetLargeRegister(REG_ADC3_VALUE,analogRead(3));
-
-
   SetLargeRegister(REG_ADC4_VALUE,analogRead(6));
-
-
   SetLargeRegister(REG_ADC5_VALUE,analogRead(7));
-
-
-
-
-
-
   CheckAlarm(ALARM_ADC);
   GetLargeRegister(REG_ADC_INTERVAL,&timers[ADC_TIMER]);
 }
@@ -58,29 +36,18 @@ void CheckAdc(){
 void CheckInput(){
   uint8_t value=0;
   uint8_t bitVal;
-
-
   digitalWrite(D165_EN_PIN, HIGH);
   digitalWrite(D165_LO_PIN, LOW);
   delayMicroseconds(5);
   digitalWrite(D165_LO_PIN, HIGH);
   digitalWrite(D165_EN_PIN, LOW);
-
   for(int i=0;i<8;i++){
-
-
-
-
     bitVal = digitalRead(D165_DO_PIN);
-
     value |= (bitVal << i);
-
     digitalWrite(D165_CK_PIN, HIGH);
     delayMicroseconds(5);
     digitalWrite(D165_CK_PIN, LOW);
   }
-
-
   registers[REG_INPUT_VALUE]=value;
   CheckAlarm(ALARM_INPUT);
   GetLargeRegister(REG_INPUT_INTERVAL,&timers[INPUT_TIMER]);
@@ -93,17 +60,10 @@ uint8_t SetOutput(){
 
   outputInterval=GetUInt16_t(registers[REG_OUTPUT_INTERVAL_HIGHBYTE],registers[REG_OUTPUT_INTERVAL_HIGHBYTE]);
 
-
-
-
-
-
-
   if(IsFunctionEnabled(FNC_OUTPUT_230V)){
     output230vInterval=GetUInt16_t(registers[REG_OUTPUT_INTERVAL_HIGHBYTE],registers[REG_OUTPUT_INTERVAL_HIGHBYTE]);
     if(output230vInterval<outputInterval)
       output230vInterval=outputInterval;
-
     if(timers[OUTPUT_230V_TIMER]==0){
       GetLargeRegister(REG_OUTPUT_230V_DELAY,(uint16_t*)&timers[OUTPUT_230V_TIMER]);
       output=output|(0x0F & registers[REG_OUTPUT_TARGET_VALUE]);
@@ -189,15 +149,11 @@ boolean SaveToEeprom(uint16_t forcedStart){
     EEPROM.write(0,MAGIC_EEPROM_BYTE_0);
     EEPROM.write(1,MAGIC_EEPROM_BYTE_1);
     EEPROM.write(2,MAGIC_EEPROM_BYTE_2);
-
     EEPROM.write(3,LowByte(forcedStart));
     EEPROM.write(4,HighByte(forcedStart));
 
-
-
     for(uint8_t i=0;i<NR_OF_SAVED_REGISTERS;i++)
       EEPROM.write(forcedStart+i,registers[i]);
-
   }
 
   return result;
@@ -212,21 +168,12 @@ boolean InitPheripherals(){
     case COMM_SPI:
       InitSPI();
       break;
-
-
-
     default:
       result=false;
       registers[REG_COMMUNICATION_MODE]=DEFAULT_COMMUNICATION;
   }
   return result;
 }
-
-
-
-
-
-
 
 void InitI2C(){
   Wire.begin(registers[REG_I2C_ADDRESS]);
@@ -241,7 +188,6 @@ void InitI2C(){
 }
 
 void InitSPI(){
-
 }
 
 void I2CRequest(){
@@ -327,7 +273,6 @@ void I2CReceive(int16_t byteCnt){
       Wire.read();
   }
 }
-
 
 uint8_t CheckTime(){
   uint8_t result=0;
@@ -460,85 +405,6 @@ uint8_t CheckAlarm(uint8_t cause){
     alarm=result;
   return result;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void setup(){
   wdt_disable();
