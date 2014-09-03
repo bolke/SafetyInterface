@@ -27,45 +27,18 @@
 #define COMM_SPI                      2
 #define COMM_SERIAL                   3
 
-#define BOARD_ARDUINO_MINI            1
-#define BOARD_CNC_SHIELD              2
-
 #define I2C_ADDRESS                    0x2A
 
 #define DEFAULT_COMMUNICATION         COMM_SERIAL
-#define BOARD_TYPE                    BOARD_ARDUINO_MINI
 
-#if BOARD_TYPE == BOARD_ARDUINO_MINI
-
-#if DEFAULT_COMMUNICATION == COMM_SERIAL
-#define DIGITAL_PINS {2,3,4,5,6,7,8,9,10,11,12,13} //serial 
-#elif DEFAULT_COMMUNICATION == COMM_I2C
-#define DIGITAL_PINS {0,1,2,3,4,5,6,7,8,9,10,11}  //i2c
-#else
-#define DIGITAL_PINS {0,1,2,3,4,5,6,7,8,9}         //spi
-#endif
-
-#else
-#define OUTPUT_START 8
-#define DIGITAL_PINS {0,1,2,3,4,5,6,7,8,9,10,11,12,13,18,19}
-#endif
-
-#define DIGITAL_PIN_CNT sizeof(DIGITAL_PINS)
-
-#if DEFAULT_COMMUNICATION == COMM_SERIAL
-#if BOARD_TYPE != BOARD_ARDUINO_MINI
-#error "Can only use comm serial with an arduino mini."
-#endif
-#endif
-
-enum SavedRegisters{  
+enum SavedRegisters{
   REG_COMMUNICATION_MODE,
   REG_I2C_ADDRESS,
   REG_FUNCTION_ENABLE,
   REG_HEARTBEAT_INTERVAL_LOWBYTE,
   REG_HEARTBEAT_INTERVAL_HIGHBYTE,
   REG_HEARTBEAT_MASK,
-  REG_INPUT_ENABLE,  
+  REG_INPUT_ENABLE,
   REG_INPUT_TRIGGER,
   REG_INPUT_INTERVAL_LOWBYTE,
   REG_INPUT_INTERVAL_HIGHBYTE,
@@ -80,12 +53,12 @@ enum SavedRegisters{
   REG_ADC_ENABLE,
   REG_ADC_TRIGGER,
   REG_ADC_INTERVAL_LOWBYTE,
-  REG_ADC_INTERVAL_HIGHBYTE,  
-  REG_ADC0_MASK,  
+  REG_ADC_INTERVAL_HIGHBYTE,
+  REG_ADC0_MASK,
   REG_ADC1_MASK,
-  REG_ADC2_MASK,  
-  REG_ADC3_MASK, 
-  REG_ADC4_MASK,  
+  REG_ADC2_MASK,
+  REG_ADC3_MASK,
+  REG_ADC4_MASK,
   REG_ADC5_MASK,
   REG_ADC0_THRESHOLD_LOWBYTE,
   REG_ADC0_THRESHOLD_HIGHBYTE,
@@ -94,12 +67,12 @@ enum SavedRegisters{
   REG_ADC2_THRESHOLD_LOWBYTE,
   REG_ADC2_THRESHOLD_HIGHBYTE,
   REG_ADC3_THRESHOLD_LOWBYTE,
-  REG_ADC3_THRESHOLD_HIGHBYTE, 
+  REG_ADC3_THRESHOLD_HIGHBYTE,
   REG_ADC4_THRESHOLD_LOWBYTE,
   REG_ADC4_THRESHOLD_HIGHBYTE,
   REG_ADC5_THRESHOLD_LOWBYTE,
-  REG_ADC5_THRESHOLD_HIGHBYTE,   
-  REG_OUTPUT_ENABLE,  
+  REG_ADC5_THRESHOLD_HIGHBYTE,
+  REG_OUTPUT_ENABLE,
   REG_OUTPUT_TARGET_VALUE,
   REG_OUTPUT_INTERVAL_LOWBYTE,
   REG_OUTPUT_INTERVAL_HIGHBYTE,
@@ -109,8 +82,8 @@ enum SavedRegisters{
 };
 
 enum RuntimeRegisters{
-  REG_ALARM_INTERRUPTS_0=REG_PROBE_MASK+1,        
-  REG_ALARM_INTERRUPTS_1,        
+  REG_ALARM_INTERRUPTS_0=REG_PROBE_MASK+1,
+  REG_ALARM_INTERRUPTS_1,
   REG_ADC0_VALUE_LOWBYTE,
   REG_ADC0_VALUE_HIGHBYTE,
   REG_ADC1_VALUE_LOWBYTE,
@@ -122,109 +95,168 @@ enum RuntimeRegisters{
   REG_ADC4_VALUE_LOWBYTE,
   REG_ADC4_VALUE_HIGHBYTE,
   REG_ADC5_VALUE_LOWBYTE,
-  REG_ADC5_VALUE_HIGHBYTE,  
-  REG_INPUT_CURRENT_VALUE,
-  REG_OUTPUT_CURRENT_VALUE,
+  REG_ADC5_VALUE_HIGHBYTE,
+  REG_INPUT_VALUE,
+  REG_OUTPUT_VALUE,
   REG_INTERNAL_TEMP_LOWBYTE,
   REG_INTERNAL_TEMP_HIGHBYTE,
   REG_PROBE_VALUE
 };
 
-enum UInt16_tRegisters{  
+enum LargeRegisters{
   REG_HEARTBEAT_INTERVAL=REG_HEARTBEAT_INTERVAL_LOWBYTE,
   REG_INPUT_INTERVAL=REG_INPUT_INTERVAL_LOWBYTE,
   REG_ADC_INTERVAL=REG_ADC_INTERVAL_LOWBYTE,
-  REG_ADC0_THRESHOLD=REG_ADC0_THRESHOLD_LOWBYTE,  
+  REG_ADC0_THRESHOLD=REG_ADC0_THRESHOLD_LOWBYTE,
   REG_ADC0_VALUE=REG_ADC0_VALUE_LOWBYTE,
-  REG_ADC1_THRESHOLD=REG_ADC1_THRESHOLD_LOWBYTE,  
+  REG_ADC1_THRESHOLD=REG_ADC1_THRESHOLD_LOWBYTE,
   REG_ADC1_VALUE=REG_ADC1_VALUE_LOWBYTE,
-  REG_ADC2_THRESHOLD=REG_ADC2_THRESHOLD_LOWBYTE,  
+  REG_ADC2_THRESHOLD=REG_ADC2_THRESHOLD_LOWBYTE,
   REG_ADC2_VALUE=REG_ADC2_VALUE_LOWBYTE,
-  REG_ADC3_THRESHOLD=REG_ADC3_THRESHOLD_LOWBYTE,  
-  REG_ADC3_VALUE=REG_ADC3_VALUE_LOWBYTE,  
-  REG_ADC4_THRESHOLD=REG_ADC4_THRESHOLD_LOWBYTE,  
-  REG_ADC4_VALUE=REG_ADC4_VALUE_LOWBYTE,  
-  REG_ADC5_THRESHOLD=REG_ADC5_THRESHOLD_LOWBYTE,  
-  REG_ADC5_VALUE=REG_ADC5_VALUE_LOWBYTE,      
+  REG_ADC3_THRESHOLD=REG_ADC3_THRESHOLD_LOWBYTE,
+  REG_ADC3_VALUE=REG_ADC3_VALUE_LOWBYTE,
+  REG_ADC4_THRESHOLD=REG_ADC4_THRESHOLD_LOWBYTE,
+  REG_ADC4_VALUE=REG_ADC4_VALUE_LOWBYTE,
+  REG_ADC5_THRESHOLD=REG_ADC5_THRESHOLD_LOWBYTE,
+  REG_ADC5_VALUE=REG_ADC5_VALUE_LOWBYTE,
   REG_INTERNAL_TEMP=REG_INTERNAL_TEMP_LOWBYTE,
-  REG_OUTPUT_INTERVAL=REG_OUTPUT_INTERVAL_LOWBYTE,  
+  REG_OUTPUT_INTERVAL=REG_OUTPUT_INTERVAL_LOWBYTE,
   REG_OUTPUT_230V_DELAY=REG_OUTPUT_230V_DELAY_LOWBYTE
 };
-
-const uint8_t REG_IO_ASSIGNMENT=REG_OUTPUT_230V_DELAY;
 
 enum Messages{
   MSG_HEARTBEAT=1,
   MSG_READ,
   MSG_WRITE,
   MSG_RESET_ALARM,
-  MSG_RESET_SETTINGS
+  MSG_RESET_DEFAULT_SETTINGS,
+  MSG_RELOAD_EEPROM_SETTINGS,
+  MSG_SAVE_SETTINGS,
+  MSG_RESET
 };
 
 enum Functions{
+  FNC_NONE=0,
   FNC_HEARTBEAT=1,
   FNC_INPUT=2,
   FNC_ADC=4,
   FNC_OUTPUT=8,
-  FNC_OUTPUT_230V=16,
-  FNC_PROBE=32
-  //FNC_=64,
-  //FNC_=128
+  FNC_SELFRESTORE=64
 };
 
 enum AlarmTriggers{
+  ALARM_OFF=0,
   ALARM_HEARTBEAT=1,
-  ALARM_INPUT,
-  ALARM_ADC,
-  ALARM_PROBE
+  ALARM_INPUT=2,
+  ALARM_ADC=4
 };
 
 enum PhysicalPins{
-  PROBE_PIN=0,                  //rx, if serial
-  D595_DI_PIN=1,                //tx, if serial
-  D595_OE_PIN=2,
-  D595_LT_PIN=3,
-  D595_CK_PIN=4,
-  D165_CK_PIN=5,        
-  D165_LO_PIN=6,
-  D165_DO_PIN=7,        
-  D165_EN_PIN=8,
-  D595_MR_PIN=9,
-  SPI_SS_PIN=10,  
+  SPI_SS_PIN=10,
   SPI_MOSI_PIN=11,
-  SPI_MISO_PIN=12,              //led0Pin if not spi
-  SPI_CLK_PIN=13,               //led1Pin if not spi
-  I2C_SDA_PIN=18,               //led0Pin if not i2c
-  I2C_SCL_PIN=19                //led1Pin if not i2c
+  SPI_MISO_PIN=12,              ///led0Pin if not spi
+  SPI_CLK_PIN=13,               ///led1Pin if not spi
+  I2C_SDA_PIN=18,               ///led0Pin if not i2c
+  I2C_SCL_PIN=19                ///led1Pin if not i2c
 };
 
 enum RunningModes{
+  SETUP_MODE,
   RUNNING_MODE,
   ALARM_MODE,
-  ERROR_MODE,
-  SETUP_MODE,
+  ERROR_MODE
 };
 
 enum TimerIds{
   HEARTBEAT_TIMER,
   INPUT_TIMER,
   ADC_TIMER,
-  OUTPUT_TIMER,
-  OUTPUT_230V_TIMER
+  OUTPUT_TIMER
 };
 
+const uint8_t inputPins[]={};                             ///pin numbers used for input. digitalRead uses these.
+const uint8_t outputPins[]={};                            ///pin numbers used for output. digitalWrite uses these.
+const uint8_t adcPins[]={};                               ///pin numbers used for adc. analogRead uses these.
+const uint8_t inputCnt=sizeof(inputPins);                 ///nr of input pins.
+const uint8_t outputCnt=sizeof(outputPins);               ///nr of output pins.
+const uint8_t adcCnt=sizeof(adcPins);                     ///nr of adc pins.
+
+/// Set most values of registers to 0, except some timer intervals,
+/// and communication mode.
 void LoadDefaults();
+
+/// Load variable from eeprom.
+/// @return Loaded or not?
 boolean LoadFromEeprom();
-uint16_t SaveToEeprom(uint16_t forcedStart=0);
+
+/// Save data to eeprom, using address given or determine the address.
+/// If forcedStart eq 0, address is read from eeprom and incremented with NR_OF_SAVED_REGISTERS.
+/// When data doesn't fit, it'll reset forcedStart to 5, the default address. Eeprom has 3 id bytes
+/// and 2 address bytes before data starts.
+/// @param forcedStart Address in eeprom to save data. If 0, determine own address.
+/// @return Saved or not?
+boolean SaveToEeprom(uint16_t forcedStart=0);
+
+/// Start i2c, spi or serial. Depends upon commMode;
+/// @return initialized or not?
 boolean InitPheripherals();
+
+/// Start serial, 115200 baud, normal settings
 void InitSerial();
+
+/// Start default arduino Wire object. 100k hz.
+/// Initialises event handlers.
+void InitI2C();
+
+/// Start spi slave mode.
+void InitSPI();
+
+/// i2c request event handler. Handles read messages, returns register values.
+void I2CRequest();
+
+/// i2c receive handler. Handles all other messages.
+void I2CReceive(int16_t byteCnt);
+
+/// Wire value to address, and check if everything is valid.
+/// @param address register address to write, saved registers are writeable, others not
+/// @param value the value to write.
 boolean WriteRegister(uint8_t address,uint8_t value);
+
+/// Set a large register using the timer. Function blocks until timer goes of and sets
+/// value. Done because of non atomic operations (16bit value, 8bit proc, etc).
+/// @param target address register address to set. Must be value in LargeRegister enum.
+/// @param value value to insert into address.
 void SetLargeRegister(uint8_t target,uint16_t value);
-uint8_t CheckTime();
+
+/// Set a uint16_t to the value at target address.
+/// @param target address register address to set. Must be value in LargeRegister enum.
+/// @param value value variable to be written.
+void GetLargeRegister(uint8_t target,volatile uint16_t* value);
+
+/// Toggle the 2 leds, to indicate error mode.
 void ErrorLedFlash();
+
+/// Callback for timer object. SetLargeRegister and GetLargeRegister depend upon this.
 void TimerCallback();
+
+/// Timekeeper function. Sets countdown timers for the different functions of the device.
+/// @return the number of countdown timers that have reached 0.
+uint8_t CheckTime();
+
+/// Read the given adc pins and check the alarm.
 void CheckAdc();
+
+/// Read the given input pins and check the alarm.
 void CheckInput();
-void SetOutput();
+
+/// Set the output pins according to the requested value and the alarm mask, if any.
+///@return the output value, including alarm mask.
+uint8_t SetOutput();
+
+/// Check the alarm for the given cause. Checks if an input is triggered, and adc value
+/// passed a threshold, etc.
+/// @param cause an item out of AlarmTriggers enum.
+/// @return the state of alarm, what alarm is active.
+uint8_t CheckAlarm(uint8_t cause);
 
 #endif
